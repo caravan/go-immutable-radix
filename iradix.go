@@ -9,7 +9,6 @@ import "bytes"
 // coordination.
 type Tree struct {
 	root *Node
-	size int
 }
 
 // New returns an empty Tree
@@ -20,11 +19,6 @@ func New() *Tree {
 	return t
 }
 
-// Len is used to return the number of elements in the tree
-func (t *Tree) Len() int {
-	return t.size
-}
-
 // Txn is a transaction on the tree. This transaction is applied
 // atomically and returns a new tree when committed. A transaction
 // is not thread safe, and should only be used by a single goroutine.
@@ -32,32 +26,16 @@ type Txn struct {
 	// root is the modified root for the transaction.
 	root *Node
 
-	// snap is a snapshot of the root node for use if we have to run the
-	// slow notify algorithm.
-	snap *Node
-
-	// size tracks the size of the tree as it is modified during the
-	// transaction.
-	size int
+	// orig is the original root
+	orig *Node
 }
 
 // Txn starts a new transaction that can be used to mutate the tree
 func (t *Tree) Txn() *Txn {
+	root := t.root
 	txn := &Txn{
-		root: t.root,
-		snap: t.root,
-		size: t.size,
-	}
-	return txn
-}
-
-// Clone makes an independent copy of the transaction. The new transaction
-// does not track any nodes and has TrackMutate turned off. The cloned transaction will contain any uncommitted writes in the original transaction but further mutations to either will be independent and result in different radix trees on Commit. A cloned transaction may be passed to another goroutine and mutated there independently however each transaction may only be mutated in a single thread.
-func (t *Txn) Clone() *Txn {
-	txn := &Txn{
-		root: t.root,
-		snap: t.snap,
-		size: t.size,
+		root: root,
+		orig: root,
 	}
 	return txn
 }
@@ -81,30 +59,10 @@ func (t *Txn) writeNode(n *Node) *Node {
 	return nc
 }
 
-// Visit all the nodes in the tree under n, and returns the size of the subtree
-// visited
-func (t *Txn) count(n *Node) int {
-	// Count only leaf nodes
-	leaves := 0
-	if n.leaf != nil {
-		leaves = 1
-	}
-
-	// Recurse on the children
-	for _, e := range n.edges {
-		leaves += t.count(e.node)
-	}
-	return leaves
-}
-
 // mergeChild is called to collapse the given node with its child. This is only
 // called when the given node is not a leaf and has a single edge.
 func (t *Txn) mergeChild(n *Node) {
-	// Mark the child node as being mutated since we are about to abandon
-	// it. We don't need to mark the leaf since we are retaining it if it
-	// is there.
-	e := n.edges[0]
-	child := e.node
+	child := n.edges[0].node
 
 	// Merge the nodes.
 	n.prefix = concat(n.prefix, child.prefix)
@@ -212,7 +170,7 @@ func (t *Txn) insert(n *Node, k, search []byte, v interface{}) (*Node, interface
 }
 
 // delete does a recursive deletion
-func (t *Txn) delete(parent, n *Node, search []byte) (*Node, *leafNode) {
+func (t *Txn) delete(n *Node, search []byte) (*Node, *leafNode) {
 	// Check for key exhaustion
 	if len(search) == 0 {
 		if !n.isLeaf() {
@@ -244,7 +202,7 @@ func (t *Txn) delete(parent, n *Node, search []byte) (*Node, *leafNode) {
 
 	// Consume the search prefix
 	search = search[len(child.prefix):]
-	newChild, leaf := t.delete(n, child, search)
+	newChild, leaf := t.delete(child, search)
 	if newChild == nil {
 		return nil, nil
 	}
@@ -265,7 +223,7 @@ func (t *Txn) delete(parent, n *Node, search []byte) (*Node, *leafNode) {
 }
 
 // delete does a recursive deletion
-func (t *Txn) deletePrefix(parent, n *Node, search []byte) (*Node, int) {
+func (t *Txn) deletePrefix(n *Node, search []byte) *Node {
 	// Check for key exhaustion
 	if len(search) == 0 {
 		nc := t.writeNode(n)
@@ -273,7 +231,7 @@ func (t *Txn) deletePrefix(parent, n *Node, search []byte) (*Node, int) {
 			nc.leaf = nil
 		}
 		nc.edges = nil
-		return nc, t.count(n)
+		return nc
 	}
 
 	// Look for an edge
@@ -282,7 +240,7 @@ func (t *Txn) deletePrefix(parent, n *Node, search []byte) (*Node, int) {
 	// We make sure that either the child node's prefix starts with the search term, or the search term starts with the child node's prefix
 	// Need to do both so that we can delete prefixes that don't correspond to any node in the tree
 	if child == nil || (!bytes.HasPrefix(child.prefix, search) && !bytes.HasPrefix(search, child.prefix)) {
-		return nil, 0
+		return nil
 	}
 
 	// Consume the search prefix
@@ -291,15 +249,11 @@ func (t *Txn) deletePrefix(parent, n *Node, search []byte) (*Node, int) {
 	} else {
 		search = search[len(child.prefix):]
 	}
-	newChild, numDeletions := t.deletePrefix(n, child, search)
+	newChild := t.deletePrefix(child, search)
 	if newChild == nil {
-		return nil, 0
+		return nil
 	}
-	// Copy this node. WATCH OUT - it's safe to pass "false" here because we
-	// will only ADD a leaf via nc.mergeChild() if there isn't one due to
-	// the !nc.isLeaf() check in the logic just below. This is pretty subtle,
-	// so be careful if you change any of the logic here.
-
+	// Copy this node.
 	nc := t.writeNode(n)
 
 	// Delete the edge if the node has no edges
@@ -311,7 +265,7 @@ func (t *Txn) deletePrefix(parent, n *Node, search []byte) (*Node, int) {
 	} else {
 		nc.edges[idx].node = newChild
 	}
-	return nc, numDeletions
+	return nc
 }
 
 // Insert is used to add or update a given key. The return provides
@@ -321,21 +275,17 @@ func (t *Txn) Insert(k []byte, v interface{}) (interface{}, bool) {
 	if newRoot != nil {
 		t.root = newRoot
 	}
-	if !didUpdate {
-		t.size++
-	}
 	return oldVal, didUpdate
 }
 
 // Delete is used to delete a given key. Returns the old value if any,
 // and a bool indicating if the key was set.
 func (t *Txn) Delete(k []byte) (interface{}, bool) {
-	newRoot, leaf := t.delete(nil, t.root, k)
+	newRoot, leaf := t.delete(t.root, k)
 	if newRoot != nil {
 		t.root = newRoot
 	}
 	if leaf != nil {
-		t.size--
 		return leaf.val, true
 	}
 	return nil, false
@@ -344,10 +294,9 @@ func (t *Txn) Delete(k []byte) (interface{}, bool) {
 // DeletePrefix is used to delete an entire subtree that matches the prefix
 // This will delete all nodes under that prefix
 func (t *Txn) DeletePrefix(prefix []byte) bool {
-	newRoot, numDeletions := t.deletePrefix(nil, t.root, prefix)
+	newRoot := t.deletePrefix(t.root, prefix)
 	if newRoot != nil {
 		t.root = newRoot
-		t.size = t.size - numDeletions
 		return true
 	}
 	return false
@@ -367,10 +316,10 @@ func (t *Txn) Get(k []byte) (interface{}, bool) {
 	return t.root.Get(k)
 }
 
-// Commit is used to finalize the transaction and return a new tree. If mutation
-// tracking is turned on then notifications will also be issued.
-func (t *Txn) Commit() *Tree {
-	return &Tree{t.root, t.size}
+// Commit is used to finalize the transaction and return a new tree.
+// Indicates if the Tree has been mutated
+func (t *Txn) Commit() (*Tree, bool) {
+	return &Tree{t.root}, t.root != t.orig
 }
 
 // Insert is used to add or update a given key. The return provides
@@ -378,7 +327,8 @@ func (t *Txn) Commit() *Tree {
 func (t *Tree) Insert(k []byte, v interface{}) (*Tree, interface{}, bool) {
 	txn := t.Txn()
 	old, ok := txn.Insert(k, v)
-	return txn.Commit(), old, ok
+	res, _ := txn.Commit()
+	return res, old, ok
 }
 
 // Delete is used to delete a given key. Returns the new tree,
@@ -386,7 +336,8 @@ func (t *Tree) Insert(k []byte, v interface{}) (*Tree, interface{}, bool) {
 func (t *Tree) Delete(k []byte) (*Tree, interface{}, bool) {
 	txn := t.Txn()
 	old, ok := txn.Delete(k)
-	return txn.Commit(), old, ok
+	res, _ := txn.Commit()
+	return res, old, ok
 }
 
 // DeletePrefix is used to delete all nodes starting with a given prefix. Returns the new tree,
@@ -394,7 +345,8 @@ func (t *Tree) Delete(k []byte) (*Tree, interface{}, bool) {
 func (t *Tree) DeletePrefix(k []byte) (*Tree, bool) {
 	txn := t.Txn()
 	ok := txn.DeletePrefix(k)
-	return txn.Commit(), ok
+	res, _ := txn.Commit()
+	return res, ok
 }
 
 // Root returns the root node of the tree which can be used for richer

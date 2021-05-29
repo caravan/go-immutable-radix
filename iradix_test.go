@@ -14,7 +14,6 @@ import (
 func CopyTree(t *Tree) *Tree {
 	nt := &Tree{
 		root: CopyNode(t.root),
-		size: t.size,
 	}
 	return nt
 }
@@ -70,14 +69,9 @@ func TestRadix(t *testing.T) {
 		if !reflect.DeepEqual(r, rCopy) {
 			t.Errorf("r: %#v rc: %#v", r, rCopy)
 			t.Errorf("r: %#v rc: %#v", r.root, rCopy.root)
-			t.Fatalf("structure modified %d", newR.Len())
 		}
 		r = newR
 		rCopy = CopyTree(r)
-	}
-
-	if r.Len() != len(inp) {
-		t.Fatalf("bad length: %v %v", r.Len(), len(inp))
 	}
 
 	for k, v := range inp {
@@ -113,9 +107,6 @@ func TestRadix(t *testing.T) {
 		if out != v {
 			t.Fatalf("value mis-match: %v %v", out, v)
 		}
-	}
-	if r.Len() != 0 {
-		t.Fatalf("bad length: %v", r.Len())
 	}
 
 	if !reflect.DeepEqual(orig, origCopy) {
@@ -270,15 +261,9 @@ func TestDeletePrefix(t *testing.T) {
 			for _, ss := range testCase.treeNodes {
 				r, _, _ = r.Insert([]byte(ss), true)
 			}
-			if got, want := r.Len(), len(testCase.treeNodes); got != want {
-				t.Fatalf("Unexpected tree length after insert, got %d want %d ", got, want)
-			}
 			r, ok := r.DeletePrefix([]byte(testCase.prefix))
 			if !ok {
 				t.Fatalf("DeletePrefix should have returned true for tree %v, deleting prefix %v", testCase.treeNodes, testCase.prefix)
-			}
-			if got, want := r.Len(), len(testCase.expectedOut); got != want {
-				t.Fatalf("Bad tree length, got %d want %d tree %v, deleting prefix %v ", got, want, testCase.treeNodes, testCase.prefix)
 			}
 
 			verifyTree(t, testCase.expectedOut, r)
@@ -319,9 +304,6 @@ func TestLongestPrefix(t *testing.T) {
 	}
 	for _, k := range keys {
 		r, _, _ = r.Insert([]byte(k), nil)
-	}
-	if r.Len() != len(keys) {
-		t.Fatalf("bad len: %v %v", r.Len(), len(keys))
 	}
 
 	type exp struct {
@@ -367,9 +349,6 @@ func TestWalkPrefix(t *testing.T) {
 	}
 	for _, k := range keys {
 		r, _, _ = r.Insert([]byte(k), nil)
-	}
-	if r.Len() != len(keys) {
-		t.Fatalf("bad len: %v %v", r.Len(), len(keys))
 	}
 
 	type exp struct {
@@ -449,9 +428,6 @@ func TestWalkPath(t *testing.T) {
 	for _, k := range keys {
 		r, _, _ = r.Insert([]byte(k), nil)
 	}
-	if r.Len() != len(keys) {
-		t.Fatalf("bad len: %v %v", r.Len(), len(keys))
-	}
 
 	type exp struct {
 		inp string
@@ -520,9 +496,6 @@ func TestIteratePrefix(t *testing.T) {
 	}
 	for _, k := range keys {
 		r, _, _ = r.Insert([]byte(k), nil)
-	}
-	if r.Len() != len(keys) {
-		t.Fatalf("bad len: %v %v", r.Len(), len(keys))
 	}
 
 	type exp struct {
@@ -682,7 +655,7 @@ func TestMergeChildVisibility(t *testing.T) {
 	}
 
 	// Commit txn2
-	r = txn2.Commit()
+	r, _ = txn2.Commit()
 
 	// Ensure we get the expected value foobar and foobaz
 	if val, ok := txn1.Get([]byte("foobar")); !ok || val != 42 {
@@ -699,23 +672,8 @@ func TestMergeChildVisibility(t *testing.T) {
 	}
 }
 
-// isClosed returns true if the given channel is closed.
-func isClosed(ch chan struct{}) bool {
-	select {
-	case <-ch:
-		return true
-	default:
-		return false
-	}
-}
-
 func TestLenTxn(t *testing.T) {
 	r := New()
-
-	if r.Len() != 0 {
-		t.Fatalf("not starting with empty tree")
-	}
-
 	txn := r.Txn()
 	keys := []string{
 		"foo/bar/baz",
@@ -727,21 +685,14 @@ func TestLenTxn(t *testing.T) {
 	for _, k := range keys {
 		txn.Insert([]byte(k), nil)
 	}
-	r = txn.Commit()
+	r, _ = txn.Commit()
 
-	if r.Len() != len(keys) {
-		t.Fatalf("bad: expected %d, got %d", len(keys), r.Len())
-	}
 
 	txn = r.Txn()
 	for _, k := range keys {
 		txn.Delete([]byte(k))
 	}
-	r = txn.Commit()
-
-	if r.Len() != 0 {
-		t.Fatalf("tree len should be zero, got %d", r.Len())
-	}
+	r, _ = txn.Commit()
 }
 
 func TestIterateLowerBound(t *testing.T) {
@@ -891,9 +842,6 @@ func TestIterateLowerBound(t *testing.T) {
 					t.Fatalf("duplicate key %s in keys", k)
 				}
 			}
-			if r.Len() != len(test.keys) {
-				t.Fatal("failed adding keys")
-			}
 			// Get and seek iterator
 			root := r.Root()
 			iter := root.Iterator()
@@ -984,35 +932,5 @@ func TestIterateLowerBoundFuzz(t *testing.T) {
 
 	if err := quick.CheckEqual(radixAddAndScan, sliceAddSortAndFilter, nil); err != nil {
 		t.Error(err)
-	}
-}
-
-func TestClone(t *testing.T) {
-	r := New()
-
-	t1 := r.Txn()
-	t1.Insert([]byte("foo"), 7)
-	t2 := t1.Clone()
-
-	t1.Insert([]byte("bar"), 42)
-	t2.Insert([]byte("baz"), 43)
-
-	if val, ok := t1.Get([]byte("foo")); !ok || val != 7 {
-		t.Fatalf("bad foo in t1")
-	}
-	if val, ok := t2.Get([]byte("foo")); !ok || val != 7 {
-		t.Fatalf("bad foo in t2")
-	}
-	if val, ok := t1.Get([]byte("bar")); !ok || val != 42 {
-		t.Fatalf("bad bar in t1")
-	}
-	if _, ok := t2.Get([]byte("bar")); ok {
-		t.Fatalf("bar found in t2")
-	}
-	if _, ok := t1.Get([]byte("baz")); ok {
-		t.Fatalf("baz found in t1")
-	}
-	if val, ok := t2.Get([]byte("baz")); !ok || val != 43 {
-		t.Fatalf("bad baz in t2")
 	}
 }
