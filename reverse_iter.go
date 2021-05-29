@@ -17,15 +17,9 @@ func NewReverseIterator(n *Node) *ReverseIterator {
 	}
 }
 
-// SeekPrefixWatch is used to seek the iterator to a given prefix
-// and returns the watch channel of the finest granularity
-func (ri *ReverseIterator) SeekPrefixWatch(prefix []byte) (watch <-chan struct{}) {
-	return ri.i.SeekPrefixWatch(prefix)
-}
-
 // SeekPrefix is used to seek the iterator to a given prefix
 func (ri *ReverseIterator) SeekPrefix(prefix []byte) {
-	ri.i.SeekPrefixWatch(prefix)
+	ri.i.SeekPrefix(prefix)
 }
 
 func (ri *ReverseIterator) recurseMax(n *Node) *Node {

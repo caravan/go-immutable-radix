@@ -12,7 +12,6 @@ type WalkFn func(k []byte, v interface{}) bool
 
 // leafNode is used to represent a value
 type leafNode struct {
-	mutateCh chan struct{}
 	key      []byte
 	val      interface{}
 }
@@ -25,9 +24,6 @@ type edge struct {
 
 // Node is an immutable node in the radix tree
 type Node struct {
-	// mutateCh is closed if this node is modified
-	mutateCh chan struct{}
-
 	// leaf is used to store possible leaf
 	leaf *leafNode
 
@@ -103,14 +99,13 @@ func (n *Node) delEdge(label byte) {
 	}
 }
 
-func (n *Node) GetWatch(k []byte) (<-chan struct{}, interface{}, bool) {
+func (n *Node) Get(k []byte) (interface{}, bool) {
 	search := k
-	watch := n.mutateCh
 	for {
 		// Check for key exhaustion
 		if len(search) == 0 {
 			if n.isLeaf() {
-				return n.leaf.mutateCh, n.leaf.val, true
+				return n.leaf.val, true
 			}
 			break
 		}
@@ -121,9 +116,6 @@ func (n *Node) GetWatch(k []byte) (<-chan struct{}, interface{}, bool) {
 			break
 		}
 
-		// Update to the finest granularity as the search makes progress
-		watch = n.mutateCh
-
 		// Consume the search prefix
 		if bytes.HasPrefix(search, n.prefix) {
 			search = search[len(n.prefix):]
@@ -131,12 +123,7 @@ func (n *Node) GetWatch(k []byte) (<-chan struct{}, interface{}, bool) {
 			break
 		}
 	}
-	return watch, nil, false
-}
-
-func (n *Node) Get(k []byte) (interface{}, bool) {
-	_, val, ok := n.GetWatch(k)
-	return val, ok
+	return nil, false
 }
 
 // LongestPrefix is like Get, but instead of an
