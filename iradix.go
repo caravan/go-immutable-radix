@@ -13,10 +13,9 @@ type Tree struct {
 
 // New returns an empty Tree
 func New() *Tree {
-	t := &Tree{
+	return &Tree{
 		root: &Node{},
 	}
-	return t
 }
 
 // Txn is a transaction on the tree. This transaction is applied
@@ -33,11 +32,10 @@ type Txn struct {
 // Txn starts a new transaction that can be used to mutate the tree
 func (t *Tree) Txn() *Txn {
 	root := t.root
-	txn := &Txn{
+	return &Txn{
 		root: root,
 		orig: root,
 	}
-	return txn
 }
 
 // writeNode returns a node to be modified, if the current node has already been
@@ -45,7 +43,7 @@ func (t *Tree) Txn() *Txn {
 func (t *Txn) writeNode(n *Node) *Node {
 	// Copy the existing node.
 	nc := &Node{
-		leaf:     n.leaf,
+		leaf: n.leaf,
 	}
 	if n.prefix != nil {
 		nc.prefix = make([]byte, len(n.prefix))
@@ -88,8 +86,8 @@ func (t *Txn) insert(n *Node, k, search []byte, v interface{}) (*Node, interface
 
 		nc := t.writeNode(n)
 		nc.leaf = &leafNode{
-			key:      k,
-			val:      v,
+			key: k,
+			val: v,
 		}
 		return nc, oldVal, didUpdate
 	}
@@ -103,8 +101,8 @@ func (t *Txn) insert(n *Node, k, search []byte, v interface{}) (*Node, interface
 			label: search[0],
 			node: &Node{
 				leaf: &leafNode{
-					key:      k,
-					val:      v,
+					key: k,
+					val: v,
 				},
 				prefix: search,
 			},
@@ -130,7 +128,7 @@ func (t *Txn) insert(n *Node, k, search []byte, v interface{}) (*Node, interface
 	// Split the node
 	nc := t.writeNode(n)
 	splitNode := &Node{
-		prefix:   search[:commonPrefix],
+		prefix: search[:commonPrefix],
 	}
 	nc.replaceEdge(edge{
 		label: search[0],
@@ -147,8 +145,8 @@ func (t *Txn) insert(n *Node, k, search []byte, v interface{}) (*Node, interface
 
 	// Create a new leaf node
 	leaf := &leafNode{
-		key:      k,
-		val:      v,
+		key: k,
+		val: v,
 	}
 
 	// If the new key is a subset, add to to this node
@@ -162,8 +160,8 @@ func (t *Txn) insert(n *Node, k, search []byte, v interface{}) (*Node, interface
 	splitNode.addEdge(edge{
 		label: search[0],
 		node: &Node{
-			leaf:     leaf,
-			prefix:   search,
+			leaf:   leaf,
+			prefix: search,
 		},
 	})
 	return nc, nil, false

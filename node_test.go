@@ -1,8 +1,6 @@
 package iradix
 
-import (
-	"testing"
-)
+import "testing"
 
 func TestNodeWalk(t *testing.T) {
 	r := New()

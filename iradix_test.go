@@ -39,8 +39,8 @@ func CopyNode(n *Node) *Node {
 
 func CopyLeaf(l *leafNode) *leafNode {
 	ll := &leafNode{
-		key:      l.key,
-		val:      l.val,
+		key: l.key,
+		val: l.val,
 	}
 	return ll
 }
@@ -686,7 +686,6 @@ func TestLenTxn(t *testing.T) {
 		txn.Insert([]byte(k), nil)
 	}
 	r, _ = txn.Commit()
-
 
 	txn = r.Txn()
 	for _, k := range keys {

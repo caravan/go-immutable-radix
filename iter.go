@@ -1,8 +1,6 @@
 package iradix
 
-import (
-	"bytes"
-)
+import "bytes"
 
 // Iterator is used to iterate over a set of nodes
 // in pre-order
@@ -18,7 +16,7 @@ func (i *Iterator) SeekPrefix(prefix []byte) {
 	n := i.node
 	search := prefix
 	for {
-		// Check for key exhaution
+		// Check for key exhaustion
 		if len(search) == 0 {
 			i.node = n
 			return

@@ -12,8 +12,8 @@ type WalkFn func(k []byte, v interface{}) bool
 
 // leafNode is used to represent a value
 type leafNode struct {
-	key      []byte
-	val      interface{}
+	key []byte
+	val interface{}
 }
 
 // edge is used to represent an edge node

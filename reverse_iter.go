@@ -1,8 +1,6 @@
 package iradix
 
-import (
-	"bytes"
-)
+import "bytes"
 
 // ReverseIterator is used to iterate over a set of nodes
 // in reverse in-order
