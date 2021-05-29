@@ -1,5 +1,11 @@
 # UNRELEASED
 
+# 1.4.0 (May 29th, 2021)
+
+FEATURES
+
+* Radically simplified the internals, removing the mutation watcher
+
 # 1.3.0 (September 17th, 2020)
 
 FEATURES
