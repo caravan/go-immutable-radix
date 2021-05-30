@@ -5,36 +5,40 @@ import (
 	"sort"
 )
 
-// WalkFn is used when walking the tree. Takes a
-// key and value, returning if iteration should
-// be terminated.
-type WalkFn func(k []byte, v interface{}) bool
+type (
+	// WalkFn is used when walking the tree. Takes a
+	// key and value, returning if iteration should
+	// be terminated.
+	WalkFn func(k []byte, v interface{}) bool
 
-// leafNode is used to represent a value
-type leafNode struct {
-	key []byte
-	val interface{}
-}
+	// leafNode is used to represent a value
+	leafNode struct {
+		key []byte
+		val interface{}
+	}
 
-// edge is used to represent an edge node
-type edge struct {
-	label byte
-	node  *Node
-}
+	// edge is used to represent an edge node
+	edge struct {
+		label byte
+		node  *Node
+	}
 
-// Node is an immutable node in the radix tree
-type Node struct {
-	// leaf is used to store possible leaf
-	leaf *leafNode
+	edges []edge
 
-	// prefix is the common prefix we ignore
-	prefix []byte
+	// Node is an immutable node in the radix tree
+	Node struct {
+		// leaf is used to store possible leaf
+		leaf *leafNode
 
-	// Edges should be stored in-order for iteration.
-	// We avoid a fully materialized slice to save memory,
-	// since in most cases we expect to be sparse
-	edges edges
-}
+		// prefix is the common prefix we ignore
+		prefix []byte
+
+		// Edges should be stored in-order for iteration.
+		// We avoid a fully materialized slice to save memory,
+		// since in most cases we expect to be sparse
+		edges edges
+	}
+)
 
 func (n *Node) isLeaf() bool {
 	return n.leaf != nil

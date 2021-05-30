@@ -2,31 +2,33 @@ package iradix
 
 import "bytes"
 
-// Tree implements an immutable radix tree. This can be treated as a
-// Dictionary abstract data type. The main advantage over a standard
-// hash map is prefix-based lookups and ordered iteration. The immutability
-// means that it is safe to concurrently read from a Tree without any
-// coordination.
-type Tree struct {
-	root *Node
-}
+type (
+	// Tree implements an immutable radix tree. This can be treated as a
+	// Dictionary abstract data type. The main advantage over a standard
+	// hash map is prefix-based lookups and ordered iteration. The immutability
+	// means that it is safe to concurrently read from a Tree without any
+	// coordination.
+	Tree struct {
+		root *Node
+	}
+
+	// Txn is a transaction on the tree. This transaction is applied
+	// atomically and returns a new tree when committed. A transaction
+	// is not thread safe, and should only be used by a single goroutine.
+	Txn struct {
+		// root is the modified root for the transaction.
+		root *Node
+
+		// orig is the original root
+		orig *Node
+	}
+)
 
 // New returns an empty Tree
 func New() *Tree {
 	return &Tree{
 		root: &Node{},
 	}
-}
-
-// Txn is a transaction on the tree. This transaction is applied
-// atomically and returns a new tree when committed. A transaction
-// is not thread safe, and should only be used by a single goroutine.
-type Txn struct {
-	// root is the modified root for the transaction.
-	root *Node
-
-	// orig is the original root
-	orig *Node
 }
 
 // Txn starts a new transaction that can be used to mutate the tree
