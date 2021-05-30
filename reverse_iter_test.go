@@ -71,7 +71,7 @@ func TestReverseIterator_SeekReverseLowerBoundFuzzFromNonRoot(t *testing.T) {
 	// tree are lower than the search key) and the seek process is cut short.
 	//
 	// But when starting from a non-root node, the prefix is not empty and so
-	// it will require a recursive search for the glabal maximum in the
+	// it will require a recursive search for the global maximum in the
 	// sub-tree, which is not needed when starting from the root.
 
 	r := New()

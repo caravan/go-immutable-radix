@@ -101,24 +101,25 @@ func (n *Node) delEdge(label byte) {
 
 func (n *Node) Get(k []byte) (interface{}, bool) {
 	search := k
+	curr := n
 	for {
 		// Check for key exhaustion
 		if len(search) == 0 {
-			if n.isLeaf() {
-				return n.leaf.val, true
+			if curr.isLeaf() {
+				return curr.leaf.val, true
 			}
 			break
 		}
 
 		// Look for an edge
-		_, n = n.getEdge(search[0])
-		if n == nil {
+		_, curr = curr.getEdge(search[0])
+		if curr == nil {
 			break
 		}
 
 		// Consume the search prefix
-		if bytes.HasPrefix(search, n.prefix) {
-			search = search[len(n.prefix):]
+		if bytes.HasPrefix(search, curr.prefix) {
+			search = search[len(curr.prefix):]
 		} else {
 			break
 		}
@@ -126,49 +127,15 @@ func (n *Node) Get(k []byte) (interface{}, bool) {
 	return nil, false
 }
 
-// LongestPrefix is like Get, but instead of an
-// exact match, it will return the longest prefix match.
-func (n *Node) LongestPrefix(k []byte) ([]byte, interface{}, bool) {
-	var last *leafNode
-	search := k
-	for {
-		// Look for a leaf node
-		if n.isLeaf() {
-			last = n.leaf
-		}
-
-		// Check for key exhaution
-		if len(search) == 0 {
-			break
-		}
-
-		// Look for an edge
-		_, n = n.getEdge(search[0])
-		if n == nil {
-			break
-		}
-
-		// Consume the search prefix
-		if bytes.HasPrefix(search, n.prefix) {
-			search = search[len(n.prefix):]
-		} else {
-			break
-		}
-	}
-	if last != nil {
-		return last.key, last.val, true
-	}
-	return nil, nil, false
-}
-
 // Minimum is used to return the minimum value in the tree
 func (n *Node) Minimum() ([]byte, interface{}, bool) {
+	curr := n
 	for {
-		if n.isLeaf() {
-			return n.leaf.key, n.leaf.val, true
+		if curr.isLeaf() {
+			return curr.leaf.key, curr.leaf.val, true
 		}
-		if len(n.edges) > 0 {
-			n = n.edges[0].node
+		if len(curr.edges) > 0 {
+			curr = curr.edges[0].node
 		} else {
 			break
 		}
@@ -178,13 +145,14 @@ func (n *Node) Minimum() ([]byte, interface{}, bool) {
 
 // Maximum is used to return the maximum value in the tree
 func (n *Node) Maximum() ([]byte, interface{}, bool) {
+	curr := n
 	for {
-		if num := len(n.edges); num > 0 {
-			n = n.edges[num-1].node
+		if num := len(curr.edges); num > 0 {
+			curr = curr.edges[num-1].node
 			continue
 		}
-		if n.isLeaf() {
-			return n.leaf.key, n.leaf.val, true
+		if curr.isLeaf() {
+			return curr.leaf.key, curr.leaf.val, true
 		} else {
 			break
 		}
@@ -204,14 +172,6 @@ func (n *Node) ReverseIterator() *ReverseIterator {
 	return NewReverseIterator(n)
 }
 
-// rawIterator is used to return a raw iterator at the given node to walk the
-// tree.
-func (n *Node) rawIterator() *rawIterator {
-	iter := &rawIterator{node: n}
-	iter.Next()
-	return iter
-}
-
 // Walk is used to walk the tree
 func (n *Node) Walk(fn WalkFn) {
 	recursiveWalk(n, fn)
@@ -225,26 +185,27 @@ func (n *Node) WalkBackwards(fn WalkFn) {
 // WalkPrefix is used to walk the tree under a prefix
 func (n *Node) WalkPrefix(prefix []byte, fn WalkFn) {
 	search := prefix
+	curr := n
 	for {
-		// Check for key exhaution
+		// Check for key exhaustion
 		if len(search) == 0 {
-			recursiveWalk(n, fn)
+			recursiveWalk(curr, fn)
 			return
 		}
 
 		// Look for an edge
-		_, n = n.getEdge(search[0])
-		if n == nil {
+		_, curr = curr.getEdge(search[0])
+		if curr == nil {
 			break
 		}
 
 		// Consume the search prefix
-		if bytes.HasPrefix(search, n.prefix) {
-			search = search[len(n.prefix):]
+		if bytes.HasPrefix(search, curr.prefix) {
+			search = search[len(curr.prefix):]
 
-		} else if bytes.HasPrefix(n.prefix, search) {
+		} else if bytes.HasPrefix(curr.prefix, search) {
 			// Child may be under our search prefix
-			recursiveWalk(n, fn)
+			recursiveWalk(curr, fn)
 			return
 		} else {
 			break
@@ -258,26 +219,27 @@ func (n *Node) WalkPrefix(prefix []byte, fn WalkFn) {
 // entries *above* the given prefix.
 func (n *Node) WalkPath(path []byte, fn WalkFn) {
 	search := path
+	curr := n
 	for {
 		// Visit the leaf values if any
-		if n.leaf != nil && fn(n.leaf.key, n.leaf.val) {
+		if curr.leaf != nil && fn(curr.leaf.key, curr.leaf.val) {
 			return
 		}
 
-		// Check for key exhaution
+		// Check for key exhaustion
 		if len(search) == 0 {
 			return
 		}
 
 		// Look for an edge
-		_, n = n.getEdge(search[0])
-		if n == nil {
+		_, curr = curr.getEdge(search[0])
+		if curr == nil {
 			return
 		}
 
 		// Consume the search prefix
-		if bytes.HasPrefix(search, n.prefix) {
-			search = search[len(n.prefix):]
+		if bytes.HasPrefix(search, curr.prefix) {
+			search = search[len(curr.prefix):]
 		} else {
 			break
 		}

@@ -291,52 +291,6 @@ func verifyTree(t *testing.T, expected []string, r *Tree) {
 	}
 }
 
-func TestLongestPrefix(t *testing.T) {
-	r := New()
-
-	keys := []string{
-		"",
-		"foo",
-		"foobar",
-		"foobarbaz",
-		"foobarbazzip",
-		"foozip",
-	}
-	for _, k := range keys {
-		r, _, _ = r.Insert([]byte(k), nil)
-	}
-
-	type exp struct {
-		inp string
-		out string
-	}
-	cases := []exp{
-		{"a", ""},
-		{"abc", ""},
-		{"fo", ""},
-		{"foo", "foo"},
-		{"foob", "foo"},
-		{"foobar", "foobar"},
-		{"foobarba", "foobar"},
-		{"foobarbaz", "foobarbaz"},
-		{"foobarbazzi", "foobarbaz"},
-		{"foobarbazzip", "foobarbazzip"},
-		{"foozi", "foo"},
-		{"foozip", "foozip"},
-		{"foozipzap", "foozip"},
-	}
-	root := r.Root()
-	for _, test := range cases {
-		m, _, ok := root.LongestPrefix([]byte(test.inp))
-		if !ok {
-			t.Fatalf("no match: %v", test)
-		}
-		if string(m) != test.out {
-			t.Fatalf("mis-match: %v %v", m, test)
-		}
-	}
-}
-
 func TestWalkPrefix(t *testing.T) {
 	r := New()
 
