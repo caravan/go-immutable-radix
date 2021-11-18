@@ -222,6 +222,52 @@ func (t *Txn) delete(n *Node, search []byte) (*Node, *leafNode) {
 	return nc, leaf
 }
 
+// delete does a recursive deletion
+func (t *Txn) deletePrefix(n *Node, search []byte) *Node {
+	// Check for key exhaustion
+	if len(search) == 0 {
+		nc := t.writeNode(n)
+		if n.isLeaf() {
+			nc.leaf = nil
+		}
+		nc.edges = nil
+		return nc
+	}
+
+	// Look for an edge
+	label := search[0]
+	idx, child := n.getEdge(label)
+	// We make sure that either the child node's prefix starts with the search term, or the search term starts with the child node's prefix
+	// Need to do both so that we can delete prefixes that don't correspond to any node in the tree
+	if child == nil || (!bytes.HasPrefix(child.prefix, search) && !bytes.HasPrefix(search, child.prefix)) {
+		return nil
+	}
+
+	// Consume the search prefix
+	if len(child.prefix) > len(search) {
+		search = []byte("")
+	} else {
+		search = search[len(child.prefix):]
+	}
+	newChild := t.deletePrefix(child, search)
+	if newChild == nil {
+		return nil
+	}
+	// Copy this node.
+	nc := t.writeNode(n)
+
+	// Delete the edge if the node has no edges
+	if newChild.leaf == nil && len(newChild.edges) == 0 {
+		nc.delEdge(label)
+		if n != t.root && len(nc.edges) == 1 && !nc.isLeaf() {
+			t.mergeChild(nc)
+		}
+	} else {
+		nc.edges[idx].node = newChild
+	}
+	return nc
+}
+
 // Insert is used to add or update a given key. The return provides
 // the previous value and a bool indicating if any was set.
 func (t *Txn) Insert(k []byte, v interface{}) (interface{}, bool) {
@@ -243,6 +289,18 @@ func (t *Txn) Delete(k []byte) (interface{}, bool) {
 		return leaf.val, true
 	}
 	return nil, false
+}
+
+// DeletePrefix is used to delete an entire subtree that matches the prefix
+// This will delete all nodes under that prefix
+func (t *Txn) DeletePrefix(prefix []byte) bool {
+	newRoot := t.deletePrefix(t.root, prefix)
+	if newRoot != nil {
+		t.root = newRoot
+		return true
+	}
+	return false
+
 }
 
 // Root returns the current root of the radix tree within this
@@ -280,6 +338,15 @@ func (t *Tree) Delete(k []byte) (*Tree, interface{}, bool) {
 	old, ok := txn.Delete(k)
 	res, _ := txn.Commit()
 	return res, old, ok
+}
+
+// DeletePrefix is used to delete all nodes starting with a given prefix. Returns the new tree,
+// and a bool indicating if the prefix matched any nodes
+func (t *Tree) DeletePrefix(k []byte) (*Tree, bool) {
+	txn := t.Txn()
+	ok := txn.DeletePrefix(k)
+	res, _ := txn.Commit()
+	return res, ok
 }
 
 // Root returns the root node of the tree which can be used for richer
